@@ -128,8 +128,7 @@ def reply_chat(peer_id):
 
 def main():
     for event in longpoll.listen():
-        if event.type == VkEventType.MESSAGE_NEW and event.peer_id == TARGET_PEER_ID:
-            # Если команда обнаружена в сообщении, отправьте сводку
+        if event.type == VkEventType.MESSAGE_NEW and event.peer_id == TARGET_PEER_ID and not event.from_me:
             if TRIGGER_WORD in event.text.lower():
                 reply_chat(TARGET_PEER_ID)
 

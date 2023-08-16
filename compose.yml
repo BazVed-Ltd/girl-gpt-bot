@@ -1,0 +1,6 @@
+services:
+  milanagpt:
+    build: .
+    volumes:
+      - .:/app
+    env_file: .env

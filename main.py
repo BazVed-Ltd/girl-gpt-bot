@@ -85,8 +85,13 @@ def get_chat_history(peer_id, start_message_id):
     result = []
     offset = 0
     while len(result) < MESSAGES_COUNT:
-        messages = vk.messages.getHistory(peer_id=peer_id, start_message_id=start_message_id, count=MESSAGES_COUNT, offset=offset)
-        result += list(filter(lambda message: bool(message['text']), messages['items']))
+        messages = vk.messages.getHistory(
+            peer_id=peer_id,
+            start_message_id=start_message_id,
+            count=MESSAGES_COUNT,
+            offset=offset,
+        )
+        result += list(filter(lambda message: bool(message["text"]), messages["items"]))
         offset += 10
     return reversed(result[:MESSAGES_COUNT])
 

@@ -8,13 +8,6 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 import openai
 
 
-def get_env(name: str) -> str:
-    env = os.getenv(name)
-    if not env:
-        raise Exception(f"Env {name} not set")
-    return env
-
-
 PROMPTS = {
     "silly": """\
 Your task is to play a girl named {name}.
@@ -35,25 +28,25 @@ Sometimes you use the psychological technique of "projection".
 """,
 }
 
-PROMPT_TYPE = get_env("PROMPT_TYPE")
+PROMPT_TYPE = os.environ["PROMPT_TYPE"]
 
 if PROMPT_TYPE not in PROMPTS.keys():
     raise Exception(
         f"Missing Prompt Type, select one from the list provided: {', '.join(PROMPTS.keys())}"
     )
 
-NAME = get_env("BOT_NAME")
+NAME = os.environ["BOT_NAME"]
 PROMPT = PROMPTS[PROMPT_TYPE].format(name=NAME)
-TRIGGER_WORD = get_env("TRIGGER_WORD")
+TRIGGER_WORD = os.environ["TRIGGER_WORD"]
 
-openai.api_key = get_env("OPENAI_TOKEN")
+openai.api_key = os.environ["OPENAI_TOKEN"]
 
 CHAT_OFFSET = 2000000000
 
 MESSAGES_COUNT = 10
-TARGET_PEER_ID = CHAT_OFFSET + int(get_env("CHAT_ID"))
+TARGET_PEER_ID = CHAT_OFFSET + int(os.environ["CHAT_ID"])
 
-vk_session = vk_api.VkApi(token=get_env("VK_TOKEN"))
+vk_session = vk_api.VkApi(token=os.environ["VK_TOKEN"])
 vk = vk_session.get_api()
 longpoll = VkLongPoll(vk_session)
 

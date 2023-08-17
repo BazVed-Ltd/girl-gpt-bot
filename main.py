@@ -8,13 +8,6 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 import openai
 
 
-def get_env(name: str) -> str:
-    env = os.getenv(name)
-    if not env:
-        raise Exception(f"Env {name} not set")
-    return env
-
-
 PROMPTS = {
     "silly": """\
 Your task is to play a girl named {name}.
@@ -31,30 +24,31 @@ You always use a lot of abstruse words.
 You really dislike male attention.
 You are a self-sufficient girl who fights for women's rights.
 You don't write more than 3 sentences.
-You sometimes use the psychological technique of "projection".
+Sometimes you use the psychological technique of "projection".
 """,
 }
 
-PROMPT_TYPE = get_env("PROMPT_TYPE")
+PROMPT_TYPE = os.environ["PROMPT_TYPE"]
 
 if PROMPT_TYPE not in PROMPTS.keys():
     raise Exception(
         f"Missing Prompt Type, select one from the list provided: {', '.join(PROMPTS.keys())}"
     )
 
-NAME = get_env("BOT_NAME")
-PROMPT = PROMPTS[PROMPT_TYPE].format(name=NAME)
-TRIGGER_WORD = get_env("TRIGGER_WORD")
-
-openai.api_key = get_env("OPENAI_TOKEN")
+openai.api_key = os.environ["OPENAI_TOKEN"]
 
 CHAT_OFFSET = 2000000000
 
 MESSAGES_COUNT = 10
-TARGET_PEER_ID = CHAT_OFFSET + int(get_env("CHAT_ID"))
+TARGET_PEER_ID = CHAT_OFFSET + int(os.environ["CHAT_ID"])
 
-vk_session = vk_api.VkApi(token=get_env("VK_TOKEN"))
+vk_session = vk_api.VkApi(token=os.environ["VK_TOKEN"])
 vk = vk_session.get_api()
+
+TRIGGER_WORD = vk.account.getProfileInfo()['first_name'].lower()
+NAME = TRIGGER_WORD  # Женя, исправь если я не прав
+PROMPT = PROMPTS[PROMPT_TYPE].format(name=NAME)
+
 longpoll = VkLongPoll(vk_session)
 
 
@@ -81,9 +75,14 @@ def get_bot_response(message):
         yield content
 
 
-def get_chat_history(peer_id):
-    messages = vk.messages.getHistory(peer_id=peer_id, count=MESSAGES_COUNT)
-    return reversed(messages["items"])
+def get_chat_history(peer_id, msg_id):
+    result = []
+    offset = 0
+    while len(result) < MESSAGES_COUNT:
+        messages = vk.messages.getHistory(peer_id=peer_id, start_message_id=msg_id, count=MESSAGES_COUNT, offset=offset)
+        result += list(filter(lambda message: bool(message['text']), messages['items']))
+        offset += 10
+    return reversed(result[:MESSAGES_COUNT])
 
 
 def fetch_ids(messages):
@@ -103,7 +102,7 @@ def split_user_group_ids(ids):
 
 
 def get_names(ids, make_req, fetch_id, fetch_name):
-    if ids == []:
+    if not ids:
         return {}
     items = make_req(",".join(list(ids)))
     id_to_name = {}
@@ -146,8 +145,6 @@ def format_messages_for_gpt(messages):
     result = ""
     for message in messages:
         text = message["text"]
-        if not text:
-            continue
 
         author = message["name"]
         result += f"{author}:\n{text}\n"
@@ -171,14 +168,15 @@ def mark_as_read(peer_id):
     return vk.messages.markAsRead(peer_id=peer_id)
 
 
-def reply_chat(peer_id):
+def reply_chat(peer_id, msg_id):
     mark_as_read(peer_id)
 
-    messages = list(get_chat_history(peer_id))
+    messages = list(get_chat_history(peer_id, msg_id))
     id_to_name = pipe(messages, fetch_ids, create_id_to_name)
     formatted_history = pipe(
         id_to_name, partial(insert_names, messages), format_messages_for_gpt
     )
+    print(formatted_history)
 
     # TODO: Refactor this loop by moving to function
     response = ""
@@ -201,7 +199,7 @@ def main():
             and not event.from_me
         ):
             if TRIGGER_WORD in event.text.lower():
-                reply_chat(TARGET_PEER_ID)
+                reply_chat(TARGET_PEER_ID, event.message_id)
 
 
 if __name__ == "__main__":

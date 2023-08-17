@@ -108,7 +108,7 @@ def split_user_group_ids(ids):
 
 
 def get_names(ids, make_req, fetch_id, fetch_name):
-    if ids == []:
+    if not ids:
         return {}
     items = make_req(",".join(list(ids)))
     id_to_name = {}

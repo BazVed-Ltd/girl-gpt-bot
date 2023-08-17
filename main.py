@@ -134,6 +134,10 @@ def format_messages_for_gpt(messages):
     return result
 
 
+def strip_name(text):
+    return text.lstrip(f"{NAME}:")
+
+
 def send_message(peer_id, message):
     return vk.messages.send(peer_id=peer_id, message=message, random_id=0)
 
@@ -165,7 +169,7 @@ def reply_chat(peer_id):
             last_send_typing = now
         response += token
 
-    send_message(peer_id, response)
+    pipe(response, strip_name, partial(send_message, peer_id))
 
 
 def main():

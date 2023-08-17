@@ -7,6 +7,23 @@ import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
 import openai
 
+openai.api_key = os.environ["OPENAI_TOKEN"]
+
+
+vk_session = vk_api.VkApi(token=os.environ["VK_TOKEN"])
+vk = vk_session.get_api()
+longpoll = VkLongPoll(vk_session)
+
+CHAT_OFFSET = 2000000000
+
+MESSAGES_COUNT = 10
+TARGET_PEER_ID = CHAT_OFFSET + int(os.environ["CHAT_ID"])
+
+
+def get_full_name():
+    profile_info = vk.account.getProfileInfo()
+    return profile_info["first_name"] + " " + profile_info["last_name"]
+
 
 PROMPTS = {
     "silly": """\
@@ -35,20 +52,9 @@ if PROMPT_TYPE not in PROMPTS.keys():
         f"Missing Prompt Type, select one from the list provided: {', '.join(PROMPTS.keys())}"
     )
 
-NAME = os.environ["BOT_NAME"]
+NAME = os.getenv("BOT_NAME") or get_full_name()
+TRIGGER_WORD = os.getenv("TRIGGER_WORD") or NAME.split(" ")[0].lower()
 PROMPT = PROMPTS[PROMPT_TYPE].format(name=NAME)
-TRIGGER_WORD = os.environ["TRIGGER_WORD"]
-
-openai.api_key = os.environ["OPENAI_TOKEN"]
-
-CHAT_OFFSET = 2000000000
-
-MESSAGES_COUNT = 10
-TARGET_PEER_ID = CHAT_OFFSET + int(os.environ["CHAT_ID"])
-
-vk_session = vk_api.VkApi(token=os.environ["VK_TOKEN"])
-vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session)
 
 
 def pipe(arg, *funcs):

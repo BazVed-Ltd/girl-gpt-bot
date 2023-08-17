@@ -81,9 +81,14 @@ def get_bot_response(message):
         yield content
 
 
-def get_chat_history(peer_id):
-    messages = vk.messages.getHistory(peer_id=peer_id, count=MESSAGES_COUNT)
-    return reversed(messages["items"])
+def get_chat_history(peer_id, start_message_id):
+    result = []
+    offset = 0
+    while len(result) < MESSAGES_COUNT:
+        messages = vk.messages.getHistory(peer_id=peer_id, start_message_id=start_message_id, count=MESSAGES_COUNT, offset=offset)
+        result += list(filter(lambda message: bool(message['text']), messages['items']))
+        offset += 10
+    return reversed(result[:MESSAGES_COUNT])
 
 
 def fetch_ids(messages):
@@ -146,9 +151,6 @@ def format_messages_for_gpt(messages):
     result = ""
     for message in messages:
         text = message["text"]
-        if not text:
-            continue
-
         author = message["name"]
         result += f"{author}:\n{text}\n"
 
@@ -171,10 +173,10 @@ def mark_as_read(peer_id):
     return vk.messages.markAsRead(peer_id=peer_id)
 
 
-def reply_chat(peer_id):
+def reply_chat(peer_id, start_message_id):
     mark_as_read(peer_id)
 
-    messages = list(get_chat_history(peer_id))
+    messages = list(get_chat_history(peer_id, start_message_id))
     id_to_name = pipe(messages, fetch_ids, create_id_to_name)
     formatted_history = pipe(
         id_to_name, partial(insert_names, messages), format_messages_for_gpt
@@ -201,7 +203,7 @@ def main():
             and not event.from_me
         ):
             if TRIGGER_WORD in event.text.lower():
-                reply_chat(TARGET_PEER_ID)
+                reply_chat(TARGET_PEER_ID, event.message_id)
 
 
 if __name__ == "__main__":

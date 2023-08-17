@@ -136,7 +136,7 @@ def format_messages_for_gpt(messages):
 
 
 def strip_name(text):
-    return text.lstrip(f"{NAME}:")
+    return text.removeprefix(f"{NAME}:")
 
 
 def send_message(peer_id, message):

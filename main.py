@@ -1,6 +1,7 @@
 import os
 import time
 import traceback
+from functools import partial
 
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
@@ -36,6 +37,13 @@ You don't write more than 5 sentences.
 """
 
 
+def pipe(arg, *funcs):
+    result = arg
+    for func in funcs:
+        result = func(result)
+    return result
+
+
 def get_bot_response(message):
     stream = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -46,7 +54,6 @@ def get_bot_response(message):
         stream=True,
     )
     for resp in stream:
-        print(resp)
         content = resp["choices"][0]["delta"].get("content")
         if content is None:
             return
@@ -55,32 +62,63 @@ def get_bot_response(message):
 
 def get_chat_history(peer_id):
     messages = vk.messages.getHistory(peer_id=peer_id, count=MESSAGES_COUNT)
-    return messages["items"][::-1]
+    return reversed(messages["items"])
 
 
-def get_names_from_message(messages):
-    ids = list(map(lambda message: message["from_id"], messages))
-    user_ids = list(map(str, filter(lambda x: x > 0, ids)))
-    group_ids = list(map(lambda x: str(-x), filter(lambda x: x < 0, ids)))
-
-    users = user_ids and vk.users.get(user_ids=",".join(user_ids))
-    groups = group_ids and vk.groups.getById(group_ids=",".join(group_ids))
-
-    id_to_names = {}
-    for user in users:
-        id_to_names[user["id"]] = user["first_name"] + " " + user["last_name"]
-    for group in groups:
-        id_to_names[-group["id"]] = group["name"]
-
-    return id_to_names
-
-
-def insert_names(messages, id_to_names):
-    result = []
+def fetch_ids(messages):
     for message in messages:
-        message["name"] = id_to_names[message["from_id"]]
-        result.append(message)
-    return result
+        yield message["from_id"]
+
+
+def split_user_group_ids(ids):
+    user_ids = []
+    group_ids = []
+    for item_id in ids:
+        if item_id > 0:
+            user_ids.append(str(item_id))
+        else:
+            group_ids.append(str(-item_id))
+    return group_ids, user_ids
+
+
+def get_names(ids, make_req, fetch_id, fetch_name):
+    if ids == []:
+        return {}
+    items = make_req(",".join(list(ids)))
+    id_to_name = {}
+    for item in items:
+        id_to_name[fetch_id(item)] = fetch_name(item)
+    return id_to_name
+
+
+def get_user_names(ids):
+    return get_names(
+        ids,
+        lambda ids: vk.users.get(user_ids=ids),
+        lambda user: user["id"],
+        lambda user: user["first_name"] + " " + user["last_name"],
+    )
+
+
+def get_group_names(ids):
+    return get_names(
+        ids,
+        lambda ids: vk.groups.getById(group_ids=ids),
+        lambda group: -group["id"],
+        lambda group: group["name"],
+    )
+
+
+def create_id_to_name(ids):
+    group_ids, user_ids = split_user_group_ids(ids)
+
+    return get_group_names(group_ids) | get_user_names(user_ids)
+
+
+def insert_names(messages, id_to_name):
+    for message in messages:
+        message["name"] = id_to_name[message["from_id"]]
+        yield message
 
 
 def format_messages_for_gpt(messages):
@@ -101,19 +139,23 @@ def send_message(peer_id, message):
 
 
 def send_typing(peer_id):
-    vk.messages.setActivity(peer_id=peer_id, type="typing")
+    return vk.messages.setActivity(peer_id=peer_id, type="typing")
+
 
 def mark_as_read(peer_id):
-    vk.messages.markAsRead(peer_id=peer_id)
+    return vk.messages.markAsRead(peer_id=peer_id)
 
 
 def reply_chat(peer_id):
     mark_as_read(peer_id)
-    messages = get_chat_history(peer_id)
-    id_to_name = get_names_from_message(messages)
-    messages_with_name = insert_names(messages, id_to_name)
-    formatted_history = format_messages_for_gpt(messages_with_name)
 
+    messages = list(get_chat_history(peer_id))
+    id_to_name = pipe(messages, fetch_ids, create_id_to_name)
+    formatted_history = pipe(
+        id_to_name, partial(insert_names, messages), format_messages_for_gpt
+    )
+
+    # TODO: Refactor this loop by moving to function
     response = ""
     last_send_typing = 0
     for token in get_bot_response(formatted_history):
@@ -128,7 +170,11 @@ def reply_chat(peer_id):
 
 def main():
     for event in longpoll.listen():
-        if event.type == VkEventType.MESSAGE_NEW and event.peer_id == TARGET_PEER_ID and not event.from_me:
+        if (
+            event.type == VkEventType.MESSAGE_NEW
+            and event.peer_id == TARGET_PEER_ID
+            and not event.from_me
+        ):
             if TRIGGER_WORD in event.text.lower():
                 reply_chat(TARGET_PEER_ID)
 

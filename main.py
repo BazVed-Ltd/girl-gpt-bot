@@ -19,6 +19,11 @@ CHAT_OFFSET = 2000000000
 MESSAGES_COUNT = 10
 TARGET_PEER_ID = CHAT_OFFSET + int(os.environ["CHAT_ID"])
 
+if os.getenv("IGNORE_LIST"):
+    IGNORE_LIST = list(map(int, os.environ["IGNORE_LIST"].split(",")))
+else:
+    IGNORE_LIST = []
+
 
 def get_full_name():
     profile_info = vk.account.getProfileInfo()
@@ -205,6 +210,7 @@ def main():
             event.type == VkEventType.MESSAGE_NEW
             and event.peer_id == TARGET_PEER_ID
             and not event.from_me
+            and event.user_id not in IGNORE_LIST
         ):
             if TRIGGER_WORD in event.text.lower():
                 reply_chat(TARGET_PEER_ID, event.message_id)

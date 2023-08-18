@@ -1,7 +1,7 @@
 import os
 import time
 import traceback
-from functools import partial
+from functools import partial, reduce
 
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
@@ -63,10 +63,7 @@ PROMPT = PROMPTS[PROMPT_TYPE].format(name=NAME)
 
 
 def pipe(arg, *funcs):
-    result = arg
-    for func in funcs:
-        result = func(result)
-    return result
+    return reduce(lambda value, func: func(value), funcs, arg)
 
 
 def get_bot_response(message):

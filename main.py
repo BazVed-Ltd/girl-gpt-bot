@@ -76,6 +76,7 @@ def get_bot_response(message):
             {"role": "system", "content": PROMPT},
             {"role": "user", "content": message},
         ],
+        stop="\n",
         stream=True,
     )
     for resp in stream:
@@ -161,7 +162,7 @@ def format_messages_for_gpt(messages):
     for message in messages:
         text = message["text"]
         author = message["name"]
-        result += f"{author}:\n{text}\n"
+        result += f"{author}: {text}\n"
 
     return result
 

@@ -157,6 +157,11 @@ def insert_names(messages, id_to_name):
         yield message
 
 
+def add_names(messages):
+    msgs = list(messages)
+    return pipe(msgs, fetch_ids, create_id_to_name, partial(insert_names, msgs))
+
+
 def format_messages_for_gpt(messages):
     result = ""
     for message in messages:
@@ -180,29 +185,34 @@ def send_typing(peer_id):
 
 
 def mark_as_read(peer_id):
-    return vk.messages.markAsRead(peer_id=peer_id)
+    vk.messages.markAsRead(peer_id=peer_id)
+    return peer_id
 
 
-def reply_chat(peer_id, start_message_id):
-    mark_as_read(peer_id)
-
-    messages = list(get_chat_history(peer_id, start_message_id))
-    id_to_name = pipe(messages, fetch_ids, create_id_to_name)
-    formatted_history = pipe(
-        id_to_name, partial(insert_names, messages), format_messages_for_gpt
-    )
-
-    # TODO: Refactor this loop by moving to function
-    response = ""
+def await_gpt_response_with_typing(peer_id, response):
+    result = ""
     last_send_typing = 0
-    for token in get_bot_response(formatted_history):
+    for token in response:
         now = time.time()
         if now - last_send_typing > 5:
             send_typing(peer_id)
             last_send_typing = now
-        response += token
+        result += token
+    return result
 
-    pipe(response, strip_name, partial(send_message, peer_id))
+
+def reply_chat(peer_id, start_message_id):
+    pipe(
+        peer_id,
+        mark_as_read,
+        partial(get_chat_history, start_message_id=start_message_id),
+        add_names,
+        format_messages_for_gpt,
+        get_bot_response,
+        partial(await_gpt_response_with_typing, peer_id),
+        strip_name,
+        partial(send_message, peer_id),
+    )
 
 
 def main():

@@ -76,13 +76,10 @@ def pipe(arg, *funcs):
     return reduce(lambda value, func: func(value), funcs, arg)
 
 
-def get_bot_response(message):
+def get_bot_response(messages):
     stream = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": PROMPT},
-            {"role": "user", "content": message},
-        ],
+        messages=[{"role": "system", "content": PROMPT}] + messages,
         stop="\n",
         stream=True,
     )
@@ -170,11 +167,14 @@ def add_names(messages):
 
 
 def format_messages_for_gpt(messages):
-    result = ""
+    result = []
     for message in messages:
         text = message["text"]
         author = message["name"]
-        result += f"{author}: {text}\n"
+        if message["from_id"] == BOT_ID:
+            result.append({"role": "assistant", "content": f"{text}"})
+        else:
+            result.append({"role": "user", "content": f"{author}: {text}"})
 
     return result
 

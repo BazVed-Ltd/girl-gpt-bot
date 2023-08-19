@@ -180,8 +180,8 @@ def strip_name(text):
     return text.removeprefix(f"{NAME}:")
 
 
-def send_message(peer_id, message):
-    return vk.messages.send(peer_id=peer_id, message=message, random_id=0)
+def send_message(peer_id, message, reply_to):
+    return vk.messages.send(peer_id=peer_id, message=message, reply_to=reply_to, random_id=0)
 
 
 def send_typing(peer_id):
@@ -205,17 +205,17 @@ def await_gpt_response_with_typing(peer_id, response):
     return result
 
 
-def reply_chat(peer_id, start_message_id):
+def reply_chat(peer_id, message_id):
     pipe(
         peer_id,
         mark_as_read,
-        partial(get_chat_history, start_message_id=start_message_id),
+        partial(get_chat_history, start_message_id=message_id),
         add_names,
         format_messages_for_gpt,
         get_bot_response,
         partial(await_gpt_response_with_typing, peer_id),
         strip_name,
-        partial(send_message, peer_id),
+        partial(send_message, peer_id, reply_to=message_id),
     )
 
 

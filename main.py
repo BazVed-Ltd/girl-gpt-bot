@@ -25,9 +25,12 @@ else:
     IGNORE_LIST = []
 
 
+PROFILE_INFO = vk.account.getProfileInfo()
+BOT_ID = PROFILE_INFO["id"]
+
+
 def get_full_name():
-    profile_info = vk.account.getProfileInfo()
-    return profile_info["first_name"] + " " + profile_info["last_name"]
+    return PROFILE_INFO["first_name"] + " " + PROFILE_INFO["last_name"]
 
 
 PROMPTS = {

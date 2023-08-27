@@ -2,7 +2,9 @@ import os
 import time
 import traceback
 from functools import partial, reduce
+from pprint import pprint as print
 
+from transliterate import translit
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType
 import openai
@@ -68,6 +70,7 @@ if PROMPT_TYPE not in PROMPTS.keys():
     )
 
 NAME = os.getenv("BOT_NAME") or get_full_name()
+NAME_ENG = translit(NAME, "ru", reversed=True).replace(" ", "_")
 TRIGGER_WORD = os.getenv("TRIGGER_WORD") or NAME.split(" ")[0].lower()
 PROMPT = PROMPTS[PROMPT_TYPE].format(name=NAME)
 
@@ -77,11 +80,9 @@ def pipe(arg, *funcs):
 
 
 def get_bot_response(messages):
-    gpt_messages = (
-        [{"role": "system", "content": PROMPT}]
-        + messages
-        + [{"role": "assistant", "content": f"{NAME}:"}]
-    )
+    gpt_messages = [{"role": "system", "content": PROMPT}] + messages
+
+    print(gpt_messages)
     stream = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=gpt_messages,
@@ -89,10 +90,11 @@ def get_bot_response(messages):
         stream=True,
     )
     for resp in stream:
-        content = resp["choices"][0]["delta"].get("content")
-        if content is None:
-            return
-        yield content
+        match resp["choices"][0]["delta"]:
+            case {"content": content}:
+                yield content
+            case {"finish_reason": "stop"}:
+                return
 
 
 def get_chat_history(peer_id, start_message_id):
@@ -175,17 +177,19 @@ def format_messages_for_gpt(messages):
     result = []
     for message in messages:
         text = message["text"]
-        author = message["name"]
+        author = translit(message["name"], "ru", reversed=True).replace(" ", "_")
         if message["from_id"] == BOT_ID:
-            result.append({"role": "assistant", "content": f"{text}"})
+            result.append({"role": "assistant", "name": NAME_ENG, "content": text})
         else:
-            result.append({"role": "user", "content": f"{author}: {text}"})
+            result.append({"role": "user", "name": author, "content": text})
 
     return result
 
 
 def send_message(peer_id, message, reply_to):
-    return vk.messages.send(peer_id=peer_id, message=message, reply_to=reply_to, random_id=0)
+    return vk.messages.send(
+        peer_id=peer_id, message=message, reply_to=reply_to, random_id=0
+    )
 
 
 def send_typing(peer_id):
